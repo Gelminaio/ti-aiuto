@@ -1482,7 +1482,16 @@ def import_blocks_from_html(html, existing_blocks):
                 new_blocks.append({"type": "Immagine", "url": url, "alt": alt, "imported": True})
     return new_blocks
 
-def save_draft(filename="bozza_articolo.json"):
+def save_draft(filename="bozza.json"):
+    import os
+    import json
+    # Percorso assoluto cartella static
+    STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
+    # Se non esiste, crea la cartella
+    os.makedirs(STATIC_DIR, exist_ok=True)
+    # Usa il nome scelto dall'utente, altrimenti "bozza.json"
+    file_path = os.path.join(STATIC_DIR, filename)
+    # Dati da salvare
     draft = {
         "content_blocks": st.session_state.get("content_blocks", []),
         "Titolo SEO": st.session_state.get("Titolo SEO", ""),
@@ -1490,15 +1499,16 @@ def save_draft(filename="bozza_articolo.json"):
         "URL Slug (senza dominio)": st.session_state.get("URL Slug (senza dominio)", ""),
         "Keyword principale": st.session_state.get("Keyword principale", ""),
     }
-    with open(filename, "w", encoding="utf-8") as f:
-        json.dump(draft, f, ensure_ascii=False, indent=2)
-    st.session_state["last_draft_path"] = filename
+    with open(file_path, "w", encoding="utf-8") as f:
+        json.dump(draft, f, ensure_ascii=False, indent=4)
+    st.session_state["last_draft_path"] = file_path
 
-def load_draft(filename="bozza_articolo.json"):
+def load_draft(filename="bozza.json"):
     try:
         with open(filename, "r", encoding="utf-8") as f:
-            draft = json.load(f)
-        for k, v in draft.items():
+            contenuto = json.load(f)
+        st.json(contenuto)
+        for k, v in contenuto.items():
             st.session_state[k] = v
         st.success("Bozza caricata!")
         st.rerun()
