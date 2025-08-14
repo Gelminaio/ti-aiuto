@@ -1484,22 +1484,27 @@ def import_blocks_from_html(html, existing_blocks):
     return new_blocks
 
 def save_draft(filename="bozza_articolo.json"):
+    draft_name = st.session_state.get("draft_name", "").strip() or "bozza_articolo"
     draft = {
         "content_blocks": st.session_state.get("content_blocks", []),
         "Titolo SEO": st.session_state.get("Titolo SEO", ""),
         "Meta Description (max 160 caratteri)": st.session_state.get("Meta Description (max 160 caratteri)", ""),
         "URL Slug (senza dominio)": st.session_state.get("URL Slug (senza dominio)", ""),
         "Keyword principale": st.session_state.get("Keyword principale", ""),
+        "nome_bozza": draft_name
     }
     url = "https://api.jsonbin.io/v3/b"
     headers = {
         "Content-Type": "application/json",
         "X-Master-Key": "$2a$10$CSwqB1KJyJtKegCq8iGctel1f7oCunIvlBghn3y1Fpzho3DkiLkqi"
     }
-    response = requests.post(url, headers=headers, json={"record": draft})
+    response = requests.post(url, headers=headers, json={
+        "record": draft,
+        "metadata": {"name": draft_name}
+    })
     if response.ok:
         bin_id = response.json()["metadata"]["id"]
-        st.session_state["last_draft_path"] = f"Bozza salvata su JSONBin.io con ID: {bin_id}"
+        st.session_state["last_draft_path"] = f"Bozza salvata su JSONBin.io con nome '{draft_name}' e ID: {bin_id}"
         print(f"JSONBin.io ID: {bin_id}")
     else:
         st.session_state["last_draft_path"] = f"Errore salvataggio su JSONBin.io: {response.text}"
