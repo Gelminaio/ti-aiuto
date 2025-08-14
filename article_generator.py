@@ -517,31 +517,39 @@ def main():
 
     draft_name = st.sidebar.text_input("Nome bozza", value="", placeholder="nome_bozza", key="draft_name")
 
-    bozze_dir = os.path.join(os.getcwd(), "output", "bozze")
-    os.makedirs(bozze_dir, exist_ok=True)
-    draft_files = [f for f in os.listdir(bozze_dir) if f.endswith(".json")]
-    draft_files.sort()
-
-    if draft_files:
-        selected_draft = st.sidebar.selectbox("Carica bozza", draft_files, key="selected_draft", index=0)
+    # Recupera bozze remote (solo da JSONBin)
+    jsonbin_drafts = get_jsonbin_drafts()
+    if jsonbin_drafts:
+        draft_options = [f"{name} (JSONBin)" for _, name in jsonbin_drafts]
+        selected_draft_idx = st.sidebar.selectbox(
+            "Carica bozza",
+            range(len(draft_options)),
+            format_func=lambda i: draft_options[i],
+            key="selected_draft",
+            index=0
+        )
+        selected_bin_id = jsonbin_drafts[selected_draft_idx][0]  # <-- AGGIUNGI QUESTA RIGA
     else:
-        selected_draft = st.sidebar.selectbox("Carica bozza", ["Nessuna bozza disponibile"], key="selected_draft", index=0)
+        st.sidebar.info("Nessuna bozza remota disponibile.")
+        selected_bin_id = None  # <-- AGGIUNGI QUESTA RIGA
 
-    col_save, col_load = st.sidebar.columns(2)
+    col_save, col_load, col_delete = st.sidebar.columns(3)
     with col_save:
         if st.button("💾 Salva bozza", key="save_draft_btn_sidebar"):
-            save_draft(os.path.join(bozze_dir, f"{draft_name}.json"))
+            save_draft()  # Salva solo su JSONBin
+
     with col_load:
-        if st.button("📂 Carica bozza", key="load_draft_btn_sidebar") and selected_draft:
-            st.session_state["load_draft_pending"] = os.path.join(bozze_dir, selected_draft)
+        if st.button("📂 Carica bozza", key="load_draft_btn_sidebar"):
+            if jsonbin_drafts and len(jsonbin_drafts) > 0:
+                bin_id = jsonbin_drafts[selected_draft_idx][0]
+                load_draft(bin_id)
+
+    with col_delete:
+        if st.button("🗑️ Elimina bozza", key="delete_draft_btn_sidebar") and selected_bin_id:
+            delete_jsonbin_draft(selected_bin_id)
+            remove_draft_from_list(selected_bin_id)
             st.rerun()
-
-    # Mostra il messaggio di salvataggio su tutta la larghezza della sidebar
-    if st.session_state.get("last_draft_path"):
-        st.sidebar.success(f"Bozza salvata in {st.session_state['last_draft_path']}")
-        del st.session_state["last_draft_path"]
-
-    # --- FINE SIDEBAR: Salva/Carica bozza ---
+# --- FINE SIDEBAR: Salva/Carica bozza ---
 
     # Caricamento bozza PRIMA di creare i widget
     pending_draft = st.session_state.get("load_draft_pending", False)
@@ -959,24 +967,14 @@ def main():
             st.success("Tutte le regole e i parametri sono a posto!")
         if n_missing == 0 or proceed:
             filename = st.text_input("Nome file (senza estensione)", key="save_filename")
-            if st.button("Salva articolo", key="save_confirm_btn"):
-                slug_name = filename.strip() or url_slug or 'articolo'
-                articoli_dir = os.path.join(os.getcwd(), "output", "articoli")
-                os.makedirs(articoli_dir, exist_ok=True)
-                full_path = os.path.join(articoli_dir, f"{slug_name}.html")
-
-                if os.path.exists(full_path):
-                    st.error(f"❌ Il file esiste già: {full_path}. Scegli un altro nome.")
-                else:
-                    try:
-                        # Salva solo il codice WordPress
-                        with open(full_path, 'w', encoding='utf-8') as f:
-                            f.write(final_html)
-                        st.session_state.last_save_path = full_path
-                        st.session_state.save_error = ""
-                        st.success(f"✅ File salvato in: {full_path}")
-                    except Exception as e:
-                        st.session_state.save_error = f"❌ Errore durante il salvataggio: {e}"
+            html_to_download = final_html
+            download_filename = (filename.strip() or 'articolo') + ".html"
+            st.download_button(
+                label="Scarica articolo HTML",
+                data=html_to_download,
+                file_name=download_filename,
+                mime="text/html"
+            )
 
         if st.session_state.save_error:
             st.error(st.session_state.save_error)
@@ -1469,6 +1467,15 @@ def import_blocks_from_html(html, existing_blocks):
                 new_blocks.append({"type": "Titolo H2", "content": content, "imported": True})
         elif p:
             content = re.sub(r'<\/?p[^>]*>', '', p).strip()
+    new_blocks = []
+    for h2, p, img in matches:
+        if h2:
+            content = re.sub(r'<\/?h2[^>]*>', '', h2).strip()
+            # Evita duplicati: cerca Titolo H2 con stesso contenuto
+            if not any(b["type"] == "Titolo H2" and b.get("content", "").strip() == content for b in existing_blocks):
+                new_blocks.append({"type": "Titolo H2", "content": content, "imported": True})
+        elif p:
+            content = re.sub(r'<\/?p[^>]*>', '', p).strip()
             # Evita duplicati: cerca Paragrafo con stesso contenuto
 
             if not any(b["type"] == "Paragrafo" and b.get("content", "").strip() == content for b in existing_blocks):
@@ -1497,7 +1504,7 @@ def save_draft(filename="bozza_articolo.json"):
     headers = {
         "Content-Type": "application/json",
         "X-Master-Key": "$2a$10$CSwqB1KJyJtKegCq8iGctel1f7oCunIvlBghn3y1Fpzho3DkiLkqi",
-        "X-Bin-Name": draft_name  # <-- aggiungi questa riga!
+        "X-Bin-Name": draft_name
     }
     response = requests.post(url, headers=headers, json={
         "record": draft
@@ -1505,10 +1512,10 @@ def save_draft(filename="bozza_articolo.json"):
     if response.ok:
         bin_id = response.json()["metadata"]["id"]
         st.session_state["last_draft_path"] = f"Bozza salvata su JSONBin.io con nome '{draft_name}' e ID: {bin_id}"
-        print(f"JSONBin.io ID: {bin_id}")
+        # Aggiorna la lista bozze remota
+        update_jsonbin_draft_list(bin_id, draft_name)
     else:
         st.session_state["last_draft_path"] = f"Errore salvataggio su JSONBin.io: {response.text}"
-        print(f"Errore salvataggio su JSONBin.io: {response.text}")
 
 def load_draft(filename="bozza_articolo.json"):
     # Se filename è un ID JSONBin (solo cifre/lettere, tipico id bin), carica da JSONBin.io
@@ -1525,22 +1532,100 @@ def load_draft(filename="bozza_articolo.json"):
                 draft = response.json()["record"]
                 for k, v in draft.items():
                     st.session_state[k] = v
-                st.success(f"Bozza importata da JSONBin.io (ID: {filename})!")
+                st.sidebar.success(f"Bozza importata da JSONBin.io (ID: {filename})!")  # <-- MODIFICA QUI
                 st.rerun()
             else:
-                st.error(f"Errore nel caricamento da JSONBin.io: {response.text}")
+                st.sidebar.error(f"Errore nel caricamento da JSONBin.io: {response.text}")
         except Exception as e:
-            st.error(f"Errore nel caricamento da JSONBin.io: {e}")
+            st.sidebar.error(f"Errore nel caricamento da JSONBin.io: {e}")
     else:
         try:
             with open(filename, "r", encoding="utf-8") as f:
                 draft = json.load(f)
             for k, v in draft.items():
                 st.session_state[k] = v
-            st.success("Bozza caricata!")
+            st.sidebar.success("Bozza caricata!")  # <-- MODIFICA QUI
             st.rerun()
         except Exception as e:
-            st.error(f"Errore nel caricamento bozza: {e}")
+            st.sidebar.error(f"Errore nel caricamento bozza: {e}")
+
+def get_jsonbin_drafts():
+    bin_id = "689dbe6943b1c97be91e1d2b"
+    url = f"https://api.jsonbin.io/v3/b/{bin_id}/latest"
+    headers = {
+        "X-Master-Key": "$2a$10$CSwqB1KJyJtKegCq8iGctel1f7oCunIvlBghn3y1Fpzho3DkiLkqi",
+        "X-Bin-Meta": "false"
+    }
+    try:
+        response = requests.get(url, headers=headers)
+        if response.ok:
+            bozze_remoti = response.json()["record"]
+            if isinstance(bozze_remoti, list):
+                return [(b["id"], b["name"]) for b in bozze_remoti if "id" in b and "name" in b]
+            else:
+                st.sidebar.error("Il bin delle bozze non è una lista. Correggi il contenuto su JSONBin.io.")
+                return []
+        else:
+            st.sidebar.error(f"Errore nel recupero bozze remote: {response.text}")
+            return []
+    except Exception as e:
+        st.sidebar.error(f"Errore nel recupero bozze remote: {e}")
+        return []
+
+def update_jsonbin_draft_list(new_id, new_name):
+    bin_id = "689dbe6943b1c97be91e1d2b"
+    url = f"https://api.jsonbin.io/v3/b/{bin_id}"
+    headers = {
+        "Content-Type": "application/json",
+        "X-Master-Key": "$2a$10$CSwqB1KJyJtKegCq8iGctel1f7oCunIvlBghn3y1Fpzho3DkiLkqi"
+    }
+    # Scarica la lista attuale
+    current = []
+    try:
+        r = requests.get(f"{url}/latest", headers={"X-Master-Key": headers["X-Master-Key"], "X-Bin-Meta": "false"})
+        if r.ok:
+            current = r.json()["record"]
+    except:
+        pass
+    # Aggiorna la lista se serve
+    if not any(b["id"] == new_id for b in current):
+        current.append({"id": new_id, "name": new_name})
+        requests.put(url, headers=headers, json={"record": current})
+
+def delete_jsonbin_draft(bin_id_to_delete):
+    # Elimina la bozza dal server JSONBin.io
+    url = f"https://api.jsonbin.io/v3/b/{bin_id_to_delete}"
+    headers = {
+        "X-Master-Key": "$2a$10$CSwqB1KJyJtKegCq8iGctel1f7oCunIvlBghn3y1Fpzho3DkiLkqi"
+    }
+    try:
+        response = requests.delete(url, headers=headers)
+        if response.ok:
+            st.sidebar.success("Bozza eliminata dal server!")
+        else:
+            st.sidebar.error(f"Errore nell'eliminazione bozza: {response.text}")
+    except Exception as e:
+        st.sidebar.error(f"Errore nell'eliminazione bozza: {e}")
+
+def remove_draft_from_list(bin_id_to_delete):
+    # Rimuove la bozza dalla lista remota
+    bin_id = "689dbe6943b1c97be91e1d2b"
+    url = f"https://api.jsonbin.io/v3/b/{bin_id}"
+    headers = {
+        "Content-Type": "application/json",
+        "X-Master-Key": "$2a$10$CSwqB1KJyJtKegCq8iGctel1f7oCunIvlBghn3y1Fpzho3DkiLkqi"
+    }
+    # Scarica la lista attuale
+    current = []
+    try:
+        r = requests.get(f"{url}/latest", headers={"X-Master-Key": headers["X-Master-Key"], "X-Bin-Meta": "false"})
+        if r.ok:
+            current = r.json()["record"]
+    except:
+        pass
+    # Rimuovi la bozza dalla lista
+    new_list = [b for b in current if b.get("id") != bin_id_to_delete]
+    requests.put(url, headers=headers, json={"record": new_list})
 
 if __name__ == "__main__":
     main()
