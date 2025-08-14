@@ -5,6 +5,7 @@ from datetime import datetime
 from string import capwords
 import textwrap
 import json
+import requests
 
 # Helper function
 def contains_keyword(text, keyword):
@@ -1490,9 +1491,19 @@ def save_draft(filename="bozza_articolo.json"):
         "URL Slug (senza dominio)": st.session_state.get("URL Slug (senza dominio)", ""),
         "Keyword principale": st.session_state.get("Keyword principale", ""),
     }
-    with open(filename, "w", encoding="utf-8") as f:
-        json.dump(draft, f, ensure_ascii=False, indent=2)
-    st.session_state["last_draft_path"] = filename
+    url = "https://api.jsonbin.io/v3/b"
+    headers = {
+        "Content-Type": "application/json",
+        "X-Master-Key": "$2a$10$CSwqB1KJyJtKegCq8iGctel1f7oCunIvlBghn3y1Fpzho3DkiLkqi"
+    }
+    response = requests.post(url, headers=headers, json={"record": draft})
+    if response.ok:
+        bin_id = response.json()["metadata"]["id"]
+        st.session_state["last_draft_path"] = f"Bozza salvata su JSONBin.io con ID: {bin_id}"
+        print(f"JSONBin.io ID: {bin_id}")
+    else:
+        st.session_state["last_draft_path"] = f"Errore salvataggio su JSONBin.io: {response.text}"
+        print(f"Errore salvataggio su JSONBin.io: {response.text}")
 
 def load_draft(filename="bozza_articolo.json"):
     try:
