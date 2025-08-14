@@ -1511,15 +1511,36 @@ def save_draft(filename="bozza_articolo.json"):
         print(f"Errore salvataggio su JSONBin.io: {response.text}")
 
 def load_draft(filename="bozza_articolo.json"):
-    try:
-        with open(filename, "r", encoding="utf-8") as f:
-            draft = json.load(f)
-        for k, v in draft.items():
-            st.session_state[k] = v
-        st.success("Bozza caricata!")
-        st.rerun()
-    except Exception as e:
-        st.error(f"Errore nel caricamento bozza: {e}")
+    # Se filename è un ID JSONBin (solo cifre/lettere, tipico id bin), carica da JSONBin.io
+    if filename and (filename.startswith("bin") or len(filename) == 24):
+        url = f"https://api.jsonbin.io/v3/b/{filename}/latest"
+        headers = {
+            "X-Master-Key": "$2a$10$CSwqB1KJyJtKegCq8iGctel1f7oCunIvlBghn3y1Fpzho3DkiLkqi",
+            # "X-Access-Key": "<ACCESS_KEY>",  # aggiungi se serve
+            "X-Bin-Meta": "false"
+        }
+        try:
+            response = requests.get(url, headers=headers)
+            if response.ok:
+                draft = response.json()["record"]
+                for k, v in draft.items():
+                    st.session_state[k] = v
+                st.success(f"Bozza importata da JSONBin.io (ID: {filename})!")
+                st.rerun()
+            else:
+                st.error(f"Errore nel caricamento da JSONBin.io: {response.text}")
+        except Exception as e:
+            st.error(f"Errore nel caricamento da JSONBin.io: {e}")
+    else:
+        try:
+            with open(filename, "r", encoding="utf-8") as f:
+                draft = json.load(f)
+            for k, v in draft.items():
+                st.session_state[k] = v
+            st.success("Bozza caricata!")
+            st.rerun()
+        except Exception as e:
+            st.error(f"Errore nel caricamento bozza: {e}")
 
 if __name__ == "__main__":
     main()
