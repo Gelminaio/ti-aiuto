@@ -1496,11 +1496,11 @@ def save_draft(filename="bozza_articolo.json"):
     url = "https://api.jsonbin.io/v3/b"
     headers = {
         "Content-Type": "application/json",
-        "X-Master-Key": "$2a$10$CSwqB1KJyJtKegCq8iGctel1f7oCunIvlBghn3y1Fpzho3DkiLkqi"
+        "X-Master-Key": "$2a$10$CSwqB1KJyJtKegCq8iGctel1f7oCunIvlBghn3y1Fpzho3DkiLkqi",
+        "X-Bin-Name": draft_name  # <-- aggiungi questa riga!
     }
     response = requests.post(url, headers=headers, json={
-        "record": draft,
-        "metadata": {"name": draft_name}
+        "record": draft
     })
     if response.ok:
         bin_id = response.json()["metadata"]["id"]
