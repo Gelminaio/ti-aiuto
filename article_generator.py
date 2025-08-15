@@ -6,6 +6,7 @@ from string import capwords
 import textwrap
 import json
 import requests
+import string
 
 # Helper function
 def contains_keyword(text, keyword):
@@ -139,28 +140,29 @@ def rule_title_titlecase(title, **kwargs):
         return False
     words = title.split()
     for i, w in enumerate(words):
-        # Salta i token numerici (es. "11")
-        if w.isnumeric():
+        # Rimuovi la punteggiatura finale/interna
+        w_clean = w.strip(string.punctuation)
+        if w_clean.isnumeric():
             continue
         if i == 0:
             # Prima parola: se è una stopword di una sola lettera, deve essere MAIUSCOLA
-            if w.lower() in stopwords and len(w) == 1:
-                if not w.isupper():
+            if w_clean.lower() in stopwords and len(w_clean) == 1:
+                if not w_clean.isupper():
                     return False
             else:
-                if not (w[:1].isupper() and w[1:].islower()):
+                if not (w_clean[:1].isupper() and w_clean[1:].islower()):
                     return False
         else:
             # Parole successive
-            if w.lower() in stopwords and len(w) == 1:
+            if w_clean.lower() in stopwords and len(w_clean) == 1:
                 # Stopword di una lettera: deve essere minuscola
-                if not w.islower():
+                if not w_clean.islower():
                     return False
-            elif w.lower() not in stopwords:
-                if not (w[:1].isupper() and w[1:].islower()):
+            elif w_clean.lower() not in stopwords:
+                if not (w_clean[:1].isupper() and w_clean[1:].islower()):
                     return False
             else:
-                if not w.islower():
+                if not w_clean.islower():
                     return False
     return True
 
@@ -210,11 +212,15 @@ def rule_keyword_in_img_alt(content, keyword, **kwargs):
     return any(contains_keyword(a, keyword) for a in all_alts)
 
 def rule_keyword_density(content, keyword, **kwargs):
-    # Densità = occorrenze keyword / numero parole
-    words = re.findall(r"\w+", content)
+    # Rimuovi i tag HTML
+    content_no_html = re.sub(r'<[^>]+>', '', content)
+    # Trova tutte le parole
+    words = re.findall(r"\w+", content_no_html)
     if not words:
         return False
-    count = len(re.findall(re.escape(keyword), content, re.IGNORECASE))
+    # Conta solo le occorrenze della keyword come parola intera (case-insensitive)
+    keyword_pattern = r'\b' + re.escape(keyword) + r'\b'
+    count = len(re.findall(keyword_pattern, content_no_html, re.IGNORECASE))
     density = count / len(words)
     return 0.01 <= density <= 0.015  # tra 1% e 1.5%
 
