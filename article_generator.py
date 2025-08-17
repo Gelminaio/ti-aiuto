@@ -467,11 +467,13 @@ def get_rules_html(title, meta_desc, url_slug, content, keyword):
               <span class='modern-info-icon' tabindex='0'>?</span>
               <span class='modern-tooltip'>
                 <b>Come funziona?</b><br>
-                La regola è soddisfatta se la keyword è all'inizio del titolo SEO oppure compare entro le prime 2 parole.<br>
-                Esempi validi:<br>
-                <code>Keyword Installazione Windows</code><br>
-                <code>5 Keyword Installazione Windows</code><br>
-                <code>Guida Keyword Installazione Windows</code>
+                La regola è rispettata se la <b>keyword</b> è all'inizio del titolo SEO o tra le prime due parole.<br>
+                <br>
+                <b>Esempi (keyword: <span style='color:#1976d2;'>Installare Windows 11</span>):</b><br>
+                <span style='color:green;'><b>✔</b> Installare Windows 11: Guida Completa</span><br>
+                <span style='color:green;'><b>✔</b> 5 Installare Windows 11 facilmente</span><br>
+                <span style='color:red;'><b>✘</b> Guida completa per Windows 11: come installare</span><br>
+                <span style='color:red;'><b>✘</b> Scopri come installare Windows 11 facilmente</span>
               </span>
             </span>
             """
