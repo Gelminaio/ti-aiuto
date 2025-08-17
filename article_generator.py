@@ -262,7 +262,15 @@ def rule_internal_links(content, **kwargs):
     return bool(md_links or html_links)
 
 def rule_keyword_at_start_title(title, keyword, **kwargs):
-    return title.lower().startswith(keyword.lower())
+    # Ignora numeri e spazi all'inizio del titolo SOLO se la keyword non inizia con un numero
+    title_strip = title.lstrip()
+    keyword_strip = keyword.lstrip()
+    # Se la keyword inizia con un numero, cerca la keyword direttamente all'inizio
+    if re.match(r'^\d+', keyword_strip):
+        return title_strip.lower().startswith(keyword_strip.lower())
+    # Altrimenti, rimuovi numeri e spazi all'inizio del titolo
+    title_clean = re.sub(r'^\d+\s*', '', title_strip)
+    return title_clean.lower().startswith(keyword_strip.lower())
 
 def rule_power_word_in_title(title, **kwargs):
     # Nuova lista di power words fornita dall'utente
