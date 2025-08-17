@@ -262,15 +262,16 @@ def rule_internal_links(content, **kwargs):
     return bool(md_links or html_links)
 
 def rule_keyword_at_start_title(title, keyword, **kwargs):
-    # Ignora numeri e spazi all'inizio del titolo SOLO se la keyword non inizia con un numero
-    title_strip = title.lstrip()
-    keyword_strip = keyword.lstrip()
-    # Se la keyword inizia con un numero, cerca la keyword direttamente all'inizio
-    if re.match(r'^\d+', keyword_strip):
-        return title_strip.lower().startswith(keyword_strip.lower())
-    # Altrimenti, rimuovi numeri e spazi all'inizio del titolo
-    title_clean = re.sub(r'^\d+\s*', '', title_strip)
-    return title_clean.lower().startswith(keyword_strip.lower())
+    # Divide il titolo in parole (ignorando la punteggiatura)
+    words = [w.strip(string.punctuation) for w in title.split()]
+    keyword_words = [w.strip(string.punctuation) for w in keyword.split()]
+    n = len(keyword_words)
+    # Controlla se la keyword è tra le prime 3 posizioni (0, 1, 2)
+    for i in range(3):
+        if words[i:i+n]:
+            if ' '.join(words[i:i+n]).lower() == ' '.join(keyword_words).lower():
+                return True
+    return False
 
 def rule_power_word_in_title(title, **kwargs):
     # Nuova lista di power words fornita dall'utente
@@ -450,6 +451,7 @@ def get_rules_html(title, meta_desc, url_slug, content, keyword):
         val = values.get(idx, "")
         is_power = RULES[idx]["func"].__name__ == "rule_power_word_in_title"
         is_short = RULES[idx]["func"].__name__ == "rule_short_paragraphs"
+        is_keyword_start = RULES[idx]["func"].__name__ == "rule_keyword_at_start_title"
         text = f"{r['text']} {val}" if val else r['text']
         is_custom = idx >= len(RANK_MATH_RULES)
 
@@ -459,6 +461,20 @@ def get_rules_html(title, meta_desc, url_slug, content, keyword):
             tip_html = power_words_tip
         elif is_short:
             tip_html = short_paragraphs_tip
+        elif is_keyword_start:
+            tip_html = """
+            <span class='modern-info-wrap'>
+              <span class='modern-info-icon' tabindex='0'>?</span>
+              <span class='modern-tooltip'>
+                <b>Come funziona?</b><br>
+                La regola è soddisfatta se la keyword è all'inizio del titolo SEO oppure compare entro le prime 2 parole.<br>
+                Esempi validi:<br>
+                <code>Keyword Installazione Windows</code><br>
+                <code>5 Keyword Installazione Windows</code><br>
+                <code>Guida Keyword Installazione Windows</code>
+              </span>
+            </span>
+            """
 
         if not r["ok"]:
             label = "🟦" if is_custom else "❌"
