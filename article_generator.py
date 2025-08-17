@@ -1059,6 +1059,13 @@ def main():
                     st.session_state.raw_content_html = ""
 
                 blocks = st.session_state.content_blocks
+
+                # Pulsante per eliminare tutti i blocchi (sopra i pulsanti aggiungi blocco)
+                if st.button("🗑️ Elimina tutti i blocchi", key="delete_all_blocks", use_container_width=True):
+                    st.session_state.content_blocks = []
+                    st.rerun()
+
+                # Pulsanti aggiungi blocco
                 st.markdown("""
                 <style>
                 .add-block-btn {
